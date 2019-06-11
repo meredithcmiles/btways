@@ -1,63 +1,88 @@
-readMCMC<-function(file, relative=FALSE){
+readMCMC<-function(files, relative=FALSE, nrates = NULL){
 
-  options(stringsAsFactors = FALSE)
+  N = length(files)
+  parnames<- levels(as.factor(getModel(files[1])))
 
-  info<-getInfo(file)
-
-  ratenames<-paste("q", info[,1], info[,2], sep="")
-  est<-which(!is.na(info[,3]))
-  parnames<-paste("q", info[est,1], info[est,2], sep="")
-  parloc<-matrix(c(info[est,1], info[est,2]), ncol=2)
-
-  skp<-startline(file)-1
-
-
-  readin<-read.delim(file, sep="\t", skip=skp, header=TRUE, fill=TRUE)
-
-  cols <- colnames(readin)
-  out<-readin[,which(cols %in% parnames)]
-
-  rj = "Model.string" %in% cols
-  glob = "Global.Rate" %in% cols
-
-  if(relative == TRUE){
-    if(glob == FALSE){
-      rateswitch = TRUE
-    } else {rateswitch = FALSE}
-  } else {
-    if(glob == FALSE){
-      rateswitch = FALSE
-    } else {rateswitch = TRUE}
+  if(N>1){
+    output = vector(mode = "list", length = N)
   }
 
-  if(rj == TRUE & glob == TRUE){
+  for (i in 1:N){
 
-    info = list("npar" = readin$No.Off.Parmeters, "n0" = readin$No.Off.Zero,
-                "lh" = readin$Lh, "model" = readin$Model.string,
-                "globrate" = readin$Global.Rate)
-    out = list("info" = info, "rates" = out)
+    file = files[i]
 
-  } else if (rj==TRUE & glob == FALSE){
+   options(stringsAsFactors = FALSE)
 
-    info = list("npar" = readin$No.Off.Parmeters, "n0" = readin$No.Off.Zero,
-                "lh" = readin$Lh, "model" = readin$Model.string)
-    out = list("info" = info, "rates" = out)
+   if (i == 1){
+     cat("Reading chains: ")
+   }
 
-  } else if (rj == FALSE & glob == TRUE){
+   skp<-startline(file)-1
+   readin<-read.delim(file, sep="\t", skip=skp, header=TRUE, fill=TRUE)
 
-    info = list("lh" = readin$Lh, "globrate" = readin$Global.Rate)
-    out = list("info" = info, "rates" = out)
+   if (i < N){
+     cat(paste(i, ", ", sep=""))
+   } else {
+     cat(paste(i, "...", sep=""),"\n",
+         "   READIN COMPLETE")
+   }
 
-  } else if (rj == FALSE & glob == FALSE){
+   cols <- colnames(readin)
+   out<-readin[,which(cols %in% parnames)]
 
-    out = list("info" = list("lh" = readin$Lh), "rates" = out)
+   rj = "Model.string" %in% cols
+   glob = "Global.Rate" %in% cols
+
+#   if(rj == TRUE){
+#     subs = substr(readin$Model.string, 2, nchar(readin$Model.string[1]))
+#     models = strsplit(subs,split = " ", fixed = TRUE)
+#     models = lapply(models, function(vec){vec[which(vec == "Z")] = NA; return(vec)})
+#     readin$Model.string = models
+#   }
+
+   if(relative == TRUE){
+     if(glob == FALSE){
+       rateswitch = TRUE
+     } else {rateswitch = FALSE}
+   } else {
+     if(glob == FALSE){
+       rateswitch = FALSE
+     } else {rateswitch = TRUE}
+   }
+
+   if(rj == TRUE){
+     if(glob == TRUE){
+       info = list("npar" = readin$No.Off.Parmeters, "nzero" = readin$No.Off.Zero,
+                 "lh" = readin$Lh, "model" = readin$Model.string,
+                 "globrate" = readin$Global.Rate)
+       out = list("info" = info, "rates" = out)
+     } else {
+       info = list("npar" = readin$No.Off.Parmeters, "nzero" = readin$No.Off.Zero,
+                   "lh" = readin$Lh, "model" = readin$Model.string)
+       out = list("info" = info, "rates" = out)
+       }
+
+   } else {
+     if (glob == TRUE){
+
+       info = list("lh" = readin$Lh, "globrate" = readin$Global.Rate)
+       out = list("info" = info, "rates" = out)
+
+     } else {
+       out = list("info" = list("lh" = readin$Lh), "rates" = out)
+     }
+   }
+
+   if(rateswitch == TRUE){
+     out = switchRates(out)
+   }
+
+   if(N == 1){output = out; break}
+
+    output[[i]] = out
 
   }
 
-  if(rateswitch == TRUE){
-    out = switchRates(out)
-  }
-
-  return(out)
+  return(output)
 
 }
